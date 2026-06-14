@@ -13,6 +13,7 @@ interface ChatMessageBubbleProps {
   onSignMandate?: () => void;
   payingListingId?: string | null;
   unlocking?: boolean;
+  searchUnlocked?: boolean;
 }
 
 export function ChatMessageBubble({
@@ -22,8 +23,13 @@ export function ChatMessageBubble({
   onSignMandate,
   payingListingId,
   unlocking,
+  searchUnlocked,
 }: ChatMessageBubbleProps) {
   const isUser = message.role === "user";
+
+  if (message.kind === "unlock_prompt" && searchUnlocked) {
+    return null;
+  }
 
   if (message.kind === "loading") {
     return (
@@ -104,7 +110,7 @@ export function ChatMessageBubble({
           </div>
         )}
 
-        {message.kind === "unlock_prompt" && onUnlockSearch && (
+        {message.kind === "unlock_prompt" && onUnlockSearch && !searchUnlocked && (
           <div className="space-y-3">
             <p>
               Store search costs a small one-time fee of <strong>0.1 ℏ</strong> and stays unlocked

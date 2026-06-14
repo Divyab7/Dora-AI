@@ -90,6 +90,7 @@ export function AgentChat() {
   const [unlocking, setUnlocking] = useState(false);
   const [payingListingId, setPayingListingId] = useState<string | null>(null);
   const [pendingAnalysis, setPendingAnalysis] = useState<VisionAnalysisResult | null>(null);
+  const lastAnalysisRef = useRef<VisionAnalysisResult | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -120,9 +121,16 @@ export function AgentChat() {
     [isConnected, accountId]
   );
 
+  const isSearchAccessGranted = useCallback(
+    (force = false) => force || searchUnlocked || isSearchUnlocked(),
+    [searchUnlocked]
+  );
+
   const runProductSearch = useCallback(
-    async (analysis: VisionAnalysisResult) => {
-      if (!searchUnlocked) {
+    async (analysis: VisionAnalysisResult, options?: { force?: boolean }) => {
+      if (!isSearchAccessGranted(options?.force)) {
+        lastAnalysisRef.current = analysis;
+        setPendingAnalysis(analysis);
         append({
           id: createMessageId(),
           role: "assistant",
@@ -137,10 +145,10 @@ export function AgentChat() {
           kind: "unlock_prompt",
           createdAt: Date.now(),
         });
-        setPendingAnalysis(analysis);
         return;
       }
 
+      setPendingAnalysis(null);
       append({
         id: createMessageId(),
         role: "assistant",
@@ -204,7 +212,7 @@ export function AgentChat() {
         ]);
       }
     },
-    [searchUnlocked, country, market.label, append, replaceLoading]
+    [isSearchAccessGranted, country, market.label, append, replaceLoading]
   );
 
   const runVisionAnalyze = useCallback(
@@ -235,6 +243,7 @@ export function AgentChat() {
         }
 
         const analysis = analyzeData.data;
+        lastAnalysisRef.current = analysis;
         const displayPreview = analysis.imageDataUrl ?? previewUrl;
 
         replaceLoading([
@@ -366,7 +375,7 @@ export function AgentChat() {
           messages: toTextMessages(nextMessages),
           accountId: accountId ?? undefined,
           country,
-          searchUnlocked,
+          searchUnlocked: isSearchAccessGranted(),
           mandates,
         }),
       });
@@ -473,10 +482,10 @@ export function AgentChat() {
           createdAt: Date.now(),
           content: "Search unlocked for 24 hours! Looking up store prices now…",
         });
-        if (pendingAnalysis) {
-          const analysis = pendingAnalysis;
-          setPendingAnalysis(null);
-          await runProductSearch(analysis);
+        const analysis = pendingAnalysis ?? lastAnalysisRef.current;
+        setPendingAnalysis(null);
+        if (analysis) {
+          await runProductSearch(analysis, { force: true });
         }
       } else {
         append({
@@ -617,7 +626,7 @@ export function AgentChat() {
           <h1 className="text-xl font-bold text-[var(--text-primary)]">Dora</h1>
           <p className="text-xs text-[var(--text-muted)]">
             Snap · Search · Pay with HBAR
-            {searchUnlocked ? " · Stores unlocked" : ""}
+            {searchUnlocked || isSearchUnlocked() ? " · Stores unlocked" : ""}
           </p>
         </div>
         <div className="flex gap-2 items-center">
@@ -661,6 +670,7 @@ export function AgentChat() {
               onSignMandate={handleSignMandate}
               payingListingId={payingListingId}
               unlocking={unlocking}
+              searchUnlocked={isSearchAccessGranted()}
             />
           ))}
           <div ref={bottomRef} />
