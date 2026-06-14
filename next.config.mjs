@@ -1,3 +1,10 @@
+const WC_CONNECT =
+  "https://*.walletconnect.com https://*.walletconnect.org " +
+  "https://relay.walletconnect.com https://rpc.walletconnect.com " +
+  "https://verify.walletconnect.com https://verify.walletconnect.org " +
+  "https://pulse.walletconnect.org https://*.hashpack.app https://*.hedera.com";
+const WC_WS = "wss://*.walletconnect.com wss://*.walletconnect.org wss://relay.walletconnect.com";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Prevent webpack from bundling native sharp binary incorrectly
@@ -40,8 +47,14 @@ const nextConfig = {
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
               "style-src 'self' 'unsafe-inline'; " +
               "img-src 'self' blob: data: https://*.ipfs.w3s.link https://*.pinata.cloud https://*.amazon.com https://*.amazon.in https://*.nike.com https://*.stockx.com https://images.unsplash.com https://picsum.photos https://fastly.picsum.photos https://placehold.co; " +
-              "connect-src 'self' https://*.hedera.com https://*.hashpack.app https://*.pinata.cloud https://api.openai.com https://*.googleapis.com https://*.pinecone.io https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org; " +
-              "frame-src 'self' https://*.hashpack.app https://*.bladewallet.io https://*.walletconnect.com https://*.walletconnect.org;",
+              "connect-src 'self' " +
+              WC_CONNECT +
+              " https://*.pinata.cloud https://api.openai.com https://*.googleapis.com https://*.pinecone.io " +
+              WC_WS +
+              "; " +
+              "frame-src 'self' https://*.hashpack.app https://*.bladewallet.io " +
+              WC_CONNECT +
+              ";",
           },
           {
             key: "X-Frame-Options",

@@ -8,8 +8,9 @@ import React, {
   useEffect,
 } from "react";
 import type { WalletProvider, HbarBalance, MandateRecord } from "@/types/wallet";
-import { connectWallet, disconnectWallet, getAvailableWallets, restoreWalletSession } from "@/lib/hedera/wallet";
+import { connectWallet, disconnectWallet, getAvailableWallets, restoreWalletSession, preloadHashConnect } from "@/lib/hedera/wallet";
 import { loadMandates, addMandate as saveMandate, revokeMandate as removeMandate } from "@/lib/storage/mandates";
+import { isChunkLoadError, reloadOnceForStaleChunk } from "@/lib/utils/chunk-reload";
 
 // ============================================
 // Types
@@ -166,6 +167,11 @@ export function WalletContextProvider({
     dispatch({ type: "LOAD_MANDATES", payload: mandates });
   }, []);
 
+  // Preload HashConnect chunk so connect doesn't fail on stale/missing lazy chunks
+  useEffect(() => {
+    preloadHashConnect();
+  }, []);
+
   const connect = useCallback(async (provider: WalletProvider) => {
     dispatch({ type: "CONNECT_START", payload: provider });
 
@@ -176,11 +182,16 @@ export function WalletContextProvider({
         payload: { accountId, network, provider },
       });
     } catch (error) {
+      if (isChunkLoadError(error)) {
+        reloadOnceForStaleChunk();
+      }
       const message =
         error instanceof Error ? error.message : "Failed to connect wallet";
       dispatch({
         type: "CONNECT_ERROR",
-        payload: message,
+        payload: isChunkLoadError(error)
+          ? "App updated — refreshing page. Try connecting again."
+          : message,
       });
       throw error instanceof Error ? error : new Error(message);
     }

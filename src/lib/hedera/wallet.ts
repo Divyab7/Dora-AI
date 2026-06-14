@@ -1,8 +1,11 @@
+"use client";
+
 /**
  * Hedera Wallet Integration — HashPack (HashConnect) & Blade Wallet
  */
 
 import type { WalletProvider } from "@/types/wallet";
+import { importWithChunkRetry } from "@/lib/utils/chunk-reload";
 
 declare global {
   interface Window {
@@ -14,6 +17,10 @@ declare global {
       connect: () => Promise<{ accountId: string }>;
     };
   }
+}
+
+async function loadHashConnect() {
+  return importWithChunkRetry(() => import("./hashconnect-client"));
 }
 
 export function detectWallets(): { hashpack: boolean; blade: boolean } {
@@ -32,7 +39,6 @@ export function getAvailableWallets(): WalletProvider[] {
   const detected = detectWallets();
   const available: WalletProvider[] = [];
 
-  // Always offer HashPack in the browser (extension or HashConnect modal)
   available.push("hashpack");
   if (detected.blade) available.push("blade");
 
@@ -77,7 +83,6 @@ export async function connectHashPack(): Promise<{
 
   const detected = detectWallets();
 
-  // Try legacy extension API first (works without WalletConnect project ID)
   if (detected.hashpack) {
     try {
       return await connectHashPackLegacy();
@@ -85,17 +90,16 @@ export async function connectHashPack(): Promise<{
       if (!process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) {
         throw legacyError;
       }
-      // Fall through to HashConnect when legacy fails but WC is configured
     }
   }
 
   if (process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) {
-    const { connectViaHashConnect } = await import("./hashconnect-client");
+    const { connectViaHashConnect } = await loadHashConnect();
     return connectViaHashConnect();
   }
 
   throw new Error(
-    "WalletConnect Project ID is not configured. Add NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID to .env.local (free at cloud.walletconnect.com), restart the dev server, and ensure HashPack is installed."
+    "WalletConnect Project ID is not configured. Add NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID to your environment (free at cloud.walletconnect.com) and ensure HashPack is installed."
   );
 }
 
@@ -132,7 +136,7 @@ export async function connectWallet(provider: WalletProvider): Promise<{
 export async function disconnectWallet(provider: WalletProvider): Promise<void> {
   if (provider === "hashpack" && process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) {
     try {
-      const { disconnectHashConnect } = await import("./hashconnect-client");
+      const { disconnectHashConnect } = await loadHashConnect();
       await disconnectHashConnect();
     } catch {
       // ignore
@@ -152,7 +156,7 @@ export async function restoreWalletSession(): Promise<{
 
   if (process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) {
     try {
-      const { restoreHashConnectSession } = await import("./hashconnect-client");
+      const { restoreHashConnectSession } = await loadHashConnect();
       const accountId = await restoreHashConnectSession();
       if (accountId) return { accountId, provider: "hashpack" };
     } catch {
@@ -161,4 +165,12 @@ export async function restoreWalletSession(): Promise<{
   }
 
   return null;
+}
+
+/** Warm up the HashConnect bundle after page load to avoid chunk errors on first connect. */
+export function preloadHashConnect(): void {
+  if (typeof window === "undefined" || !process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) {
+    return;
+  }
+  loadHashConnect().catch(() => {});
 }
