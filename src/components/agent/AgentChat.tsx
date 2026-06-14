@@ -11,6 +11,7 @@ import { ChatComposer, extractShoppingLink, isShoppingLink } from "@/components/
 import { ChatWalletDialog } from "@/components/agent/ChatWalletDialog";
 import { signAndSendTransactionBytes } from "@/lib/hedera/sign-transaction";
 import { markSearchUnlocked, isSearchUnlocked } from "@/lib/storage/search-unlock";
+import { useHydrated } from "@/hooks/useHydrated";
 import { parseApiResponse } from "@/lib/utils/api";
 import { formatHbar } from "@/lib/utils/format";
 import type { VisionAnalysisResult, ProductMatch } from "@/types/search";
@@ -80,6 +81,7 @@ export function AgentChat() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [searchUnlocked, setSearchUnlocked] = useState(false);
+  const hydrated = useHydrated();
   const [dragActive, setDragActive] = useState(false);
   const [showWalletDialog, setShowWalletDialog] = useState(false);
   const [walletDialogReason, setWalletDialogReason] = useState<string>();
@@ -96,8 +98,10 @@ export function AgentChat() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setSearchUnlocked(isSearchUnlocked());
-  }, []);
+    if (hydrated) {
+      setSearchUnlocked(isSearchUnlocked());
+    }
+  }, [hydrated]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -121,14 +125,11 @@ export function AgentChat() {
     [isConnected, accountId]
   );
 
-  const isSearchAccessGranted = useCallback(
-    (force = false) => force || searchUnlocked || isSearchUnlocked(),
-    [searchUnlocked]
-  );
-
   const runProductSearch = useCallback(
     async (analysis: VisionAnalysisResult, options?: { force?: boolean }) => {
-      if (!isSearchAccessGranted(options?.force)) {
+      const unlocked =
+        options?.force || searchUnlocked || isSearchUnlocked();
+      if (!unlocked) {
         lastAnalysisRef.current = analysis;
         setPendingAnalysis(analysis);
         append({
@@ -149,6 +150,9 @@ export function AgentChat() {
       }
 
       setPendingAnalysis(null);
+      if (!searchUnlocked && isSearchUnlocked()) {
+        setSearchUnlocked(true);
+      }
       append({
         id: createMessageId(),
         role: "assistant",
@@ -212,7 +216,7 @@ export function AgentChat() {
         ]);
       }
     },
-    [isSearchAccessGranted, country, market.label, append, replaceLoading]
+    [searchUnlocked, country, market.label, append, replaceLoading]
   );
 
   const runVisionAnalyze = useCallback(
@@ -375,7 +379,7 @@ export function AgentChat() {
           messages: toTextMessages(nextMessages),
           accountId: accountId ?? undefined,
           country,
-          searchUnlocked: isSearchAccessGranted(),
+          searchUnlocked: searchUnlocked || isSearchUnlocked(),
           mandates,
         }),
       });
@@ -626,7 +630,7 @@ export function AgentChat() {
           <h1 className="text-xl font-bold text-[var(--text-primary)]">Dora</h1>
           <p className="text-xs text-[var(--text-muted)]">
             Snap · Search · Pay with HBAR
-            {searchUnlocked || isSearchUnlocked() ? " · Stores unlocked" : ""}
+            {hydrated && searchUnlocked ? " · Stores unlocked" : ""}
           </p>
         </div>
         <div className="flex gap-2 items-center">
@@ -670,7 +674,7 @@ export function AgentChat() {
               onSignMandate={handleSignMandate}
               payingListingId={payingListingId}
               unlocking={unlocking}
-              searchUnlocked={isSearchAccessGranted()}
+              searchUnlocked={hydrated && searchUnlocked}
             />
           ))}
           <div ref={bottomRef} />

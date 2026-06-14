@@ -40,7 +40,7 @@ const initialState: SpendingLimitState = {
   dailySpent: 0,
   perTransactionLimit: SPENDING.DEFAULT_PER_TX_LIMIT_HBAR,
   requiresApprovalAbove: SPENDING.DEFAULT_APPROVAL_THRESHOLD_HBAR,
-  lastResetDate: new Date().toISOString().split("T")[0],
+  lastResetDate: "",
   isOverDailyLimit: false,
 };
 
