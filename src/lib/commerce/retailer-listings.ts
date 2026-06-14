@@ -298,8 +298,7 @@ export function listingsToProductMatch(
   brand: string,
   category: ProductCategory,
   description: string,
-  listings: RetailerListing[],
-  visionConfidence = 0.82
+  listings: RetailerListing[]
 ): {
   listings: RetailerListing[];
   summary: RetailerSearchSummary;

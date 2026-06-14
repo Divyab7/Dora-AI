@@ -34,7 +34,6 @@ export default function ResultsPage() {
   const { market } = useMarket();
   const router = useRouter();
 
-  const currency = market.currency;
   const primaryMatch = results[0];
 
   const isInCart = (productId: string, retailerId: string) =>

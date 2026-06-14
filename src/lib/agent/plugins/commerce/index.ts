@@ -60,7 +60,7 @@ function requireMandate(session: AgentSessionContext, amountTinybar: string): vo
 export function createCommercePlugin(session: AgentSessionContext): Plugin {
   const country = session.country;
 
-  const tools = (_context: Context): Tool[] => [
+  const tools = (): Tool[] => [
     {
       method: "analyze_product_image",
       name: "analyze_product_image",

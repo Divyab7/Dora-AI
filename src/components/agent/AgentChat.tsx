@@ -41,13 +41,6 @@ const STARTERS = [
   "How does paying work?",
 ];
 
-const SOURCE_LABELS: Record<string, string> = {
-  youtube: "YouTube",
-  instagram: "Instagram",
-  tiktok: "TikTok",
-  web: "Web",
-};
-
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
