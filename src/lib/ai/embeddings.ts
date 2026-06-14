@@ -26,42 +26,67 @@ export async function generateGeminiEmbedding(text: string): Promise<number[]> {
     throw new Error("GEMINI_API_KEY not configured");
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "models/text-embedding-004",
-        content: { parts: [{ text }] },
-      }),
+  let lastError: Error | null = null;
+
+  for (const model of AI.GEMINI_EMBEDDING_MODELS) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:embedContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: `models/${model}`,
+            content: { parts: [{ text }] },
+            taskType: "RETRIEVAL_QUERY",
+            outputDimensionality: AI.PINECONE_DIMENSION,
+          }),
+        }
+      );
+
+      if (response.status === 404) {
+        lastError = new Error(`Gemini embedding model ${model} not found`);
+        continue;
+      }
+
+      if (response.status === 429 || response.status === 503) {
+        lastError = new Error(`Gemini embedding ${response.status} on ${model}`);
+        console.warn(`[Embeddings] ${model} rate limited, trying next...`);
+        continue;
+      }
+
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`Gemini Embedding error: ${response.status} — ${err.slice(0, 200)}`);
+      }
+
+      const data = await response.json();
+      const embedding = data.embedding?.values;
+
+      if (!embedding || !Array.isArray(embedding)) {
+        throw new Error("Gemini returned empty embedding");
+      }
+
+      const targetDim = AI.PINECONE_DIMENSION;
+      if (embedding.length < targetDim) {
+        console.warn(
+          `[Embeddings] Gemini (${model}) output ${embedding.length}-dim, padding to ${targetDim}-dim.`
+        );
+        console.log(`[Embeddings] ✓ Used Gemini ${model}`);
+        return [...embedding, ...new Array(targetDim - embedding.length).fill(0)];
+      }
+
+      console.log(`[Embeddings] ✓ Used Gemini ${model}`);
+      return embedding.slice(0, targetDim);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (!lastError.message.includes("not found") && !lastError.message.includes("404")) {
+        throw lastError;
+      }
     }
-  );
-
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Gemini Embedding error: ${response.status} — ${err.slice(0, 200)}`);
   }
 
-  const data = await response.json();
-  const embedding = data.embedding?.values;
-
-  if (!embedding || !Array.isArray(embedding)) {
-    throw new Error("Gemini returned empty embedding");
-  }
-
-  // Gemini outputs 768-dim. If Pinecone expects 1536, pad with zeros.
-  // Better: recreate your Pinecone index with dimensions=768 for Gemini.
-  const targetDim = AI.PINECONE_DIMENSION;
-  if (embedding.length < targetDim) {
-    console.warn(
-      `[Embeddings] Gemini output ${embedding.length}-dim, padding to ${targetDim}-dim. ` +
-      `Consider recreating Pinecone index with dimensions=${embedding.length} for better results.`
-    );
-    return [...embedding, ...new Array(targetDim - embedding.length).fill(0)];
-  }
-
-  return embedding.slice(0, targetDim);
+  throw lastError ?? new Error("No Gemini embedding models available");
 }
 
 // ============================================
@@ -104,7 +129,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   if (process.env.GEMINI_API_KEY) {
     try {
       const embedding = await generateGeminiEmbedding(searchText);
-      console.log("[Embeddings] ✓ Used Gemini text-embedding-004");
+      console.log("[Embeddings] ✓ Used Gemini embedding");
       return embedding;
     } catch (err) {
       console.warn("[Embeddings] Gemini failed, trying OpenAI:", (err as Error).message);

@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Prevent webpack from bundling native sharp binary incorrectly
+  experimental: {
+    serverComponentsExternalPackages: ["sharp"],
+  },
   images: {
     remotePatterns: [
       {
@@ -20,7 +24,7 @@ const nextConfig = {
       },
       {
         protocol: "https",
-        hostname: "**.stockx.com",
+        hostname: "images.unsplash.com",
       },
     ],
   },
@@ -35,9 +39,9 @@ const nextConfig = {
               "default-src 'self'; " +
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'; " +
               "style-src 'self' 'unsafe-inline'; " +
-              "img-src 'self' blob: data: https://*.ipfs.w3s.link https://*.pinata.cloud https://*.amazon.com https://*.nike.com https://*.stockx.com; " +
-              "connect-src 'self' https://*.hedera.com https://*.hashpack.app https://*.pinata.cloud https://api.openai.com https://*.googleapis.com https://*.pinecone.io; " +
-              "frame-src 'self' https://*.hashpack.app https://*.bladewallet.io;",
+              "img-src 'self' blob: data: https://*.ipfs.w3s.link https://*.pinata.cloud https://*.amazon.com https://*.amazon.in https://*.nike.com https://*.stockx.com https://images.unsplash.com https://picsum.photos https://fastly.picsum.photos https://placehold.co; " +
+              "connect-src 'self' https://*.hedera.com https://*.hashpack.app https://*.pinata.cloud https://api.openai.com https://*.googleapis.com https://*.pinecone.io https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org; " +
+              "frame-src 'self' https://*.hashpack.app https://*.bladewallet.io https://*.walletconnect.com https://*.walletconnect.org;",
           },
           {
             key: "X-Frame-Options",

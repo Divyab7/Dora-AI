@@ -4,6 +4,10 @@ import { generateSearchEmbedding } from "@/lib/ai/embeddings";
 import { extractImageFromUrl, isSupportedUrl } from "@/lib/ai/url-extract";
 import type { ApiResponse, VisionAnalysisResult } from "@/types";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
 /**
  * POST /api/vision/analyze
  *

@@ -7,6 +7,7 @@ import { CartContextProvider } from "@/contexts/CartContext";
 import { SearchContextProvider } from "@/contexts/SearchContext";
 import { CheckoutContextProvider } from "@/contexts/CheckoutContext";
 import { GroupBuyContextProvider } from "@/contexts/GroupBuyContext";
+import { MarketContextProvider } from "@/contexts/MarketContext";
 import { ToastContainer } from "@/components/ui/Toast";
 
 /**
@@ -26,20 +27,22 @@ function ToastOverlay() {
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <UIContextProvider>
-      <WalletContextProvider>
-        <SpendingLimitContextProvider>
-          <CartContextProvider>
-            <SearchContextProvider>
-              <CheckoutContextProvider>
-                <GroupBuyContextProvider>
-                  {children}
-                  <ToastOverlay />
-                </GroupBuyContextProvider>
-              </CheckoutContextProvider>
-            </SearchContextProvider>
-          </CartContextProvider>
-        </SpendingLimitContextProvider>
-      </WalletContextProvider>
+      <MarketContextProvider>
+        <WalletContextProvider>
+          <SpendingLimitContextProvider>
+            <CartContextProvider>
+              <SearchContextProvider>
+                <CheckoutContextProvider>
+                  <GroupBuyContextProvider>
+                    {children}
+                    <ToastOverlay />
+                  </GroupBuyContextProvider>
+                </CheckoutContextProvider>
+              </SearchContextProvider>
+            </CartContextProvider>
+          </SpendingLimitContextProvider>
+        </WalletContextProvider>
+      </MarketContextProvider>
     </UIContextProvider>
   );
 }

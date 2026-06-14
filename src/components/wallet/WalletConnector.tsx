@@ -5,6 +5,7 @@ import { useWallet } from "@/contexts/WalletContext";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import type { WalletProvider } from "@/types/wallet";
+import { getAvailableWallets } from "@/lib/hedera/wallet";
 
 /**
  * Polls for wallet extensions every second.
@@ -16,16 +17,7 @@ function useWalletDetection() {
   const [checking, setChecking] = useState(true);
 
   const detect = useCallback(() => {
-    const found: WalletProvider[] = [];
-    // HashPack: check for the provider object with request method
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (typeof window !== "undefined" && (window as Record<string, any>).hashpack?.request) {
-      found.push("hashpack");
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (typeof window !== "undefined" && (window as Record<string, any>).bladeWallet?.connect) {
-      found.push("blade");
-    }
+    const found = getAvailableWallets();
     setAvailable(found);
     return found;
   }, []);
@@ -111,10 +103,18 @@ export function WalletConnector() {
       {/* No wallets found */}
       {available.length === 0 && !checking && (
         <div className="p-5 rounded-xl bg-yellow-500/10 border border-yellow-500/20 space-y-3 text-center">
-          <p className="text-sm text-yellow-400 font-medium">No Hedera wallet detected</p>
-          <p className="text-xs text-yellow-400/70">
-            Install a wallet browser extension to continue
-          </p>
+          <p className="text-sm text-yellow-400 font-medium">Wallet setup required</p>
+          {!process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ? (
+            <p className="text-xs text-yellow-400/80 text-left">
+              Add <code className="text-yellow-200">NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID</code> to{" "}
+              <code className="text-yellow-200">.env.local</code> (free at cloud.walletconnect.com), then
+              restart the dev server. Also install the HashPack extension.
+            </p>
+          ) : (
+            <p className="text-xs text-yellow-400/70">
+              Install HashPack or Blade wallet extension, then refresh this page.
+            </p>
+          )}
           <div className="flex gap-2 justify-center pt-1">
             <a
               href="https://www.hashpack.app/download"

@@ -2,8 +2,9 @@
 
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from "react";
 import type { CartItem, CartSummary, PaymentMethod } from "@/types/cart";
-import { FEES } from "@/lib/utils/constants";
+import { FEES, HBAR_USD_RATE } from "@/lib/utils/constants";
 import { loadCart, saveCart } from "@/lib/storage/cart";
+import { DEFAULT_COUNTRY, MARKETS, type CountryCode } from "@/lib/commerce/market";
 
 // ============================================
 // Types
@@ -97,8 +98,32 @@ function cartReducer(state: CartState, action: CartAction): CartState {
 // Helpers
 // ============================================
 
+function migrateCartItem(item: CartItem): CartItem {
+  const storedCountry =
+    typeof window !== "undefined"
+      ? (localStorage.getItem("dora_market_country") as CountryCode | null)
+      : null;
+  const market =
+    storedCountry && storedCountry in MARKETS
+      ? MARKETS[storedCountry]
+      : MARKETS[DEFAULT_COUNTRY];
+
+  const currency = item.currency ?? market.currency;
+  const minorDivisor = currency === "JPY" || currency === "KRW" ? 1 : 100;
+  const usdRate = MARKETS[market.code]?.usdRate ?? market.usdRate;
+  const localMajor = item.price / minorDivisor;
+  const usdMajor = localMajor / usdRate;
+  const priceHbar = Math.floor(
+    (usdMajor / HBAR_USD_RATE) * 100_000_000
+  ).toString();
+
+  return { ...item, currency, priceHbar };
+}
+
 function computeSummary(state: CartState): CartSummary {
-  const subtotalUsd = state.items.reduce(
+  const currency = state.items[0]?.currency ?? MARKETS[DEFAULT_COUNTRY].currency;
+
+  const subtotal = state.items.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
   );
@@ -111,16 +136,18 @@ function computeSummary(state: CartState): CartSummary {
   const txFeeBps = FEES.TRANSACTION_FEE_BPS;
   const payin3FeeBps = state.selectedPaymentMethod === "payin3" ? FEES.PAYIN3_FEE_BPS : 0;
 
-  const transactionFee = Math.floor(subtotalUsd * txFeeBps / 10000);
-  const payIn3Fee = Math.floor(subtotalUsd * payin3FeeBps / 10000);
+  const transactionFee = Math.floor(subtotal * txFeeBps / 10000);
+  const payIn3Fee = Math.floor(subtotal * payin3FeeBps / 10000);
+  const total = subtotal + transactionFee + payIn3Fee;
 
   return {
     itemCount: state.items.reduce((sum, i) => sum + i.quantity, 0),
-    subtotalUsd,
+    currency,
+    subtotal,
     subtotalHbar: subtotalHbar.toString(),
     transactionFee,
     payIn3Fee,
-    totalUsd: subtotalUsd + transactionFee + payIn3Fee,
+    total,
     totalHbar: (
       subtotalHbar +
       (subtotalHbar * BigInt(txFeeBps + payin3FeeBps)) / BigInt(10000)
@@ -138,11 +165,15 @@ const CartContext = createContext<CartContextValue | undefined>(undefined);
 export function CartContextProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(cartReducer, initialState);
 
-  // Load persisted cart
+  // Load persisted cart (migrate legacy items without currency)
   useEffect(() => {
     const saved = loadCart();
     if (saved.items.length > 0) {
-      dispatch({ type: "LOAD_CART", payload: saved });
+      const items = saved.items.map((item) => migrateCartItem({
+        ...item,
+        currency: item.currency ?? MARKETS[DEFAULT_COUNTRY].currency,
+      }));
+      dispatch({ type: "LOAD_CART", payload: { ...saved, items } });
     }
   }, []);
 

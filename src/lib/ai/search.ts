@@ -7,8 +7,10 @@
 
 import { Pinecone } from "@pinecone-database/pinecone";
 import { AI } from "@/lib/utils/constants";
+import { buildRetailerListings, buildSearchSummary } from "@/lib/commerce/retailer-listings";
+import { type CountryCode, DEFAULT_COUNTRY } from "@/lib/commerce/market";
 import type { ProductMatch, VisionAnalysisResult } from "@/types/search";
-import type { Product, RetailerOffer, ProductCategory } from "@/types/product";
+import type { Product, ProductCategory, RetailerListing } from "@/types/product";
 
 const PINECONE_API_KEY = process.env.PINECONE_API_KEY;
 
@@ -30,13 +32,14 @@ export async function searchSimilarProducts(
     topK?: number;
     categoryFilter?: ProductCategory;
     minConfidence?: number;
+    country?: CountryCode;
   }
 ): Promise<ProductMatch[]> {
+  const country = options?.country ?? DEFAULT_COUNTRY;
   const pinecone = getPineconeClient();
 
   if (!pinecone) {
-    // Return mock results for development
-    return getMockResults(analysis);
+    return getMockResults(analysis, country);
   }
 
   try {
@@ -58,7 +61,7 @@ export async function searchSimilarProducts(
       .map((match) => {
         const metadata = match.metadata as Record<string, unknown> | undefined;
         const product = metadataToProduct(metadata, match.id);
-        const retailers = (metadata?.retailers as RetailerOffer[]) ?? [];
+        const retailers = (metadata?.retailers as RetailerListing[]) ?? [];
 
         return {
           product,
@@ -78,14 +81,13 @@ export async function searchSimilarProducts(
     // If Pinecone index is empty, supplement with mock results using actual AI analysis
     if (pineconeResults.length === 0) {
       console.log("[Pinecone] Index empty — supplementing with mock results from AI analysis");
-      const mockResults = getMockResults(analysis);
-      return mockResults;
+      return getMockResults(analysis, country);
     }
 
     return pineconeResults;
   } catch (error) {
     console.error("[Pinecone] Search error:", error);
-    return getMockResults(analysis);
+    return getMockResults(analysis, country);
   }
 }
 
@@ -102,7 +104,7 @@ function metadataToProduct(
     imageCid: (metadata?.imageCid as string) ?? "",
     attributes: (metadata?.attributes as Product["attributes"]) ?? {},
     embedding: [], // Not needed for results
-    retailers: (metadata?.retailers as RetailerOffer[]) ?? [],
+    retailers: (metadata?.retailers as RetailerListing[]) ?? [],
     createdAt: (metadata?.createdAt as string) ?? new Date().toISOString(),
     updatedAt: (metadata?.updatedAt as string) ?? new Date().toISOString(),
   };
@@ -113,93 +115,42 @@ function metadataToProduct(
  * Uses the actual detected brand, category, and description to build
  * realistic-looking product matches with prices across retailers.
  */
-function getMockResults(analysis: VisionAnalysisResult): ProductMatch[] {
-  const brand = analysis.detectedBrand ?? "Premium";
-  const category = analysis.detectedCategory ?? "accessories";
-  const color = analysis.detectedAttributes?.color ?? "";
-  const desc = analysis.gpt4vDescription || `${brand} ${category}`;
+function getMockResults(analysis: VisionAnalysisResult, country: CountryCode = DEFAULT_COUNTRY): ProductMatch[] {
+  const brand = analysis.detectedBrand ?? "Unknown";
+  const category = (analysis.detectedCategory ?? "accessories") as ProductCategory;
+  const productName =
+    analysis.identifiedProductName ??
+    `${brand !== "Unknown" ? brand + " " : ""}${analysis.detectedAttributes?.color ? analysis.detectedAttributes.color + " " : ""}${category}`;
+  const desc = analysis.gpt4vDescription || productName;
 
-  // Generate retailer prices with slight variations
-  function makeRetailers(basePrice: number): RetailerOffer[] {
-    return [
-      {
-        retailerId: "amazon",
-        retailerName: "Amazon",
-        price: basePrice,
-        priceHbar: Math.floor(basePrice / 100 / 0.08 * 100_000_000).toString(),
-        currency: "USD",
-        inStock: true,
-        url: `https://amazon.com/s?k=${encodeURIComponent(brand)}`,
-        affiliateUrl: `https://amazon.com/s?k=${encodeURIComponent(brand)}&tag=dora-20`,
-        lastUpdated: new Date().toISOString(),
-      },
-      {
-        retailerId: "stockx",
-        retailerName: "StockX",
-        price: Math.floor(basePrice * (0.85 + Math.random() * 0.3)),
-        priceHbar: Math.floor(basePrice * 0.9 / 100 / 0.08 * 100_000_000).toString(),
-        currency: "USD",
-        inStock: Math.random() > 0.2,
-        url: `https://stockx.com/search?s=${encodeURIComponent(brand)}`,
-        affiliateUrl: `https://stockx.com/search?s=${encodeURIComponent(brand)}`,
-        lastUpdated: new Date().toISOString(),
-      },
-      {
-        retailerId: "nike",
-        retailerName: "Nike",
-        price: Math.floor(basePrice * (0.9 + Math.random() * 0.2)),
-        priceHbar: Math.floor(basePrice * 1.05 / 100 / 0.08 * 100_000_000).toString(),
-        currency: "USD",
-        inStock: Math.random() > 0.3,
-        url: `https://nike.com/w?q=${encodeURIComponent(brand)}`,
-        affiliateUrl: `https://nike.com/w?q=${encodeURIComponent(brand)}`,
-        lastUpdated: new Date().toISOString(),
-      },
-    ];
-  }
+  const listings = buildRetailerListings(productName, brand, category, country);
+  const summary = buildSearchSummary(listings);
+  const inStock = listings.filter((l) => l.inStock);
+  const pool = inStock.length > 0 ? inStock : listings;
+  const best = pool.reduce((a, b) => (a.price < b.price ? a : b), pool[0]);
 
-  const results: ProductMatch[] = [
+  return [
     {
       product: {
-        id: `mock-${Date.now()}-1`,
-        name: `${brand} ${color ? color + " " : ""}${category.charAt(0).toUpperCase() + category.slice(1)}`,
-        brand,
+        id: `match-${Date.now()}`,
+        name: productName,
+        brand: brand !== "Unknown" ? brand : "Various",
         category,
         description: desc,
-        imageCid: "bafybeig...mock1",
+        imageCid: "",
         attributes: analysis.detectedAttributes,
         embedding: [],
-        retailers: makeRetailers(12999),
+        retailers: listings,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
-      confidence: analysis.confidence || 0.92,
-      lowestPrice: 10999,
-      lowestPriceHbar: Math.floor(10999 / 100 / 0.08 * 100_000_000).toString(),
-      retailerCount: 3,
-      allRetailers: makeRetailers(12999),
-    },
-    {
-      product: {
-        id: `mock-${Date.now()}-2`,
-        name: `${brand} Premium ${color ? color + " " : ""}Edition`,
-        brand,
-        category,
-        description: `Premium ${brand} ${category}. ${desc.slice(0, 100)}`,
-        imageCid: "bafybeig...mock2",
-        attributes: { color, style: analysis.detectedAttributes?.style },
-        embedding: [],
-        retailers: makeRetailers(8999),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      confidence: analysis.confidence ? analysis.confidence - 0.1 : 0.82,
-      lowestPrice: 7999,
-      lowestPriceHbar: Math.floor(7999 / 100 / 0.08 * 100_000_000).toString(),
-      retailerCount: 3,
-      allRetailers: makeRetailers(8999),
+      confidence: 0.82,
+      lowestPrice: best?.price ?? 0,
+      lowestPriceHbar: best?.priceHbar ?? "0",
+      retailerCount: listings.length,
+      allRetailers: listings,
+      exactMatchFound: summary.exactMatchFound,
+      matchSummary: summary.message,
     },
   ];
-
-  return results;
 }

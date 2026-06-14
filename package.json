@@ -4,13 +4,21 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:clean": "rm -rf .next && next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "smoke": "bash scripts/smoke-test.sh 3002"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.82",
+    "@ai-sdk/openai": "^3.0.71",
+    "@ai-sdk/react": "^3.0.207",
     "@google-cloud/vision": "^4.3.2",
+    "@hashgraph/hedera-agent-kit": "^4.0.0",
+    "@hashgraph/hedera-agent-kit-ai-sdk": "^1.0.0",
     "@hashgraph/sdk": "^2.52.0",
+    "@hiero-ledger/sdk": "^2.85.0",
     "@pinecone-database/pinecone": "^3.0.3",
     "@radix-ui/react-dialog": "^1.1.1",
     "@radix-ui/react-dropdown-menu": "^2.1.1",
@@ -20,8 +28,10 @@
     "@radix-ui/react-toast": "^1.2.1",
     "@radix-ui/react-tooltip": "^1.1.2",
     "@radix-ui/react-visually-hidden": "^1.1.0",
+    "ai": "^6.0.205",
     "clsx": "^2.1.1",
     "framer-motion": "^11.3.24",
+    "hashconnect": "^3.0.14",
     "next": "14.2.35",
     "openai": "^4.55.0",
     "pinata-web3": "^0.5.4",

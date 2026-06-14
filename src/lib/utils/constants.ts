@@ -56,6 +56,17 @@ export const AI = {
   MIN_VISION_CONFIDENCE: 0.35,
   /** Escalate to GPT-4o when Gemini confidence is below this (0-100 scale) */
   VISION_ESCALATION_THRESHOLD: 60,
+  /** Gemini vision models — lite first (separate quota pool), per Google AI docs Jun 2026 */
+  GEMINI_VISION_MODELS: [
+    "gemini-2.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-2.5-flash",
+    "gemini-flash-lite-latest",
+    "gemini-flash-latest",
+  ] as const,
+  /** Gemini embedding models */
+  GEMINI_EMBEDDING_MODELS: ["gemini-embedding-001", "gemini-embedding-2"] as const,
   GPT4V_MODEL: "gpt-4-vision-preview",
   EMBEDDING_MODEL: "text-embedding-3-small",
 } as const;
@@ -95,4 +106,5 @@ export const ROUTES = {
   SETTINGS: "/settings",
   ONBOARDING: "/onboarding",
   CONNECT: "/connect",
+  AGENT: "/agent",
 } as const;

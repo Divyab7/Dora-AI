@@ -8,7 +8,7 @@ import React, {
   useEffect,
 } from "react";
 import type { WalletProvider, HbarBalance, MandateRecord } from "@/types/wallet";
-import { connectWallet, disconnectWallet, getAvailableWallets } from "@/lib/hedera/wallet";
+import { connectWallet, disconnectWallet, getAvailableWallets, restoreWalletSession } from "@/lib/hedera/wallet";
 import { loadMandates, addMandate as saveMandate, revokeMandate as removeMandate } from "@/lib/storage/mandates";
 
 // ============================================
@@ -140,10 +140,24 @@ export function WalletContextProvider({
 }) {
   const [state, dispatch] = useReducer(walletReducer, initialState);
 
-  // Detect available wallets on mount
+  // Detect available wallets + restore HashConnect session
   useEffect(() => {
-    getAvailableWallets(); // Side-effect: verifies wallet extensions are present
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    getAvailableWallets();
+
+    restoreWalletSession().then((session) => {
+      if (session) {
+        dispatch({
+          type: "CONNECT_SUCCESS",
+          payload: {
+            accountId: session.accountId,
+            network:
+              (process.env.NEXT_PUBLIC_HEDERA_NETWORK as "testnet" | "mainnet") ||
+              "testnet",
+            provider: session.provider,
+          },
+        });
+      }
+    });
   }, []);
 
   // Load persisted mandates
@@ -161,20 +175,54 @@ export function WalletContextProvider({
         type: "CONNECT_SUCCESS",
         payload: { accountId, network, provider },
       });
-
-      // TODO: Fetch initial balance from mirror node
     } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to connect wallet";
       dispatch({
         type: "CONNECT_ERROR",
-        payload:
-          error instanceof Error ? error.message : "Failed to connect wallet",
+        payload: message,
       });
+      throw error instanceof Error ? error : new Error(message);
     }
   }, []);
 
+  const refreshBalance = useCallback(async () => {
+    if (!state.accountId) return;
+
+    try {
+      const mirrorUrl =
+        state.network === "mainnet"
+          ? "https://mainnet-public.mirrornode.hedera.com"
+          : "https://testnet.mirrornode.hedera.com";
+
+      const response = await fetch(
+        `${mirrorUrl}/api/v1/accounts/${state.accountId}`
+      );
+      const data = await response.json();
+
+      const tinybar = data.balance?.balance ?? "0";
+      const hbar = (BigInt(tinybar) / BigInt(100_000_000)).toString();
+      const usd = Number(hbar) * 0.08;
+
+      dispatch({
+        type: "UPDATE_BALANCE",
+        payload: { tinybar, hbar, usd },
+      });
+    } catch (error) {
+      console.error("Failed to refresh balance:", error);
+    }
+  }, [state.accountId, state.network]);
+
+  // Refresh balance when connected
+  useEffect(() => {
+    if (state.isConnected && state.accountId) {
+      refreshBalance();
+    }
+  }, [state.isConnected, state.accountId, refreshBalance]);
+
   const disconnect = useCallback(() => {
     if (state.provider) {
-      disconnectWallet(state.provider);
+      disconnectWallet(state.provider).catch(console.error);
     }
     dispatch({ type: "DISCONNECT" });
   }, [state.provider]);
@@ -202,33 +250,6 @@ export function WalletContextProvider({
     removeMandate(mandateId);
     dispatch({ type: "REVOKE_MANDATE", payload: mandateId });
   }, []);
-
-  const refreshBalance = useCallback(async () => {
-    if (!state.accountId) return;
-
-    try {
-      const mirrorUrl =
-        state.network === "mainnet"
-          ? "https://mainnet-public.mirrornode.hedera.com"
-          : "https://testnet.mirrornode.hedera.com";
-
-      const response = await fetch(
-        `${mirrorUrl}/api/v1/accounts/${state.accountId}`
-      );
-      const data = await response.json();
-
-      const tinybar = data.balance?.balance ?? "0";
-      const hbar = (BigInt(tinybar) / BigInt(100_000_000)).toString();
-      const usd = Number(hbar) * 0.08; // Approximate HBAR→USD
-
-      dispatch({
-        type: "UPDATE_BALANCE",
-        payload: { tinybar, hbar, usd },
-      });
-    } catch (error) {
-      console.error("Failed to refresh balance:", error);
-    }
-  }, [state.accountId, state.network]);
 
   const value: WalletContextValue = {
     ...state,

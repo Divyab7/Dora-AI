@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchSimilarProducts } from "@/lib/ai/search";
 import { enrichWithPrices } from "@/lib/ai/catalog";
+import { resolveCountry } from "@/lib/commerce/market";
 import type { ApiResponse, ProductMatch, VisionAnalysisResult } from "@/types";
 
 /**
@@ -18,9 +19,10 @@ export async function POST(
 
   try {
     const body = await request.json();
-    const { embedding, analysis } = body as {
+    const { embedding, analysis, country } = body as {
       embedding: number[];
       analysis: VisionAnalysisResult;
+      country?: string;
     };
 
     if (!embedding || embedding.length === 0) {
@@ -35,10 +37,13 @@ export async function POST(
     }
 
     // Search Pinecone for similar products
-    const matches = await searchSimilarProducts(embedding, analysis || {});
+    const marketCountry = resolveCountry(country);
 
-    // Enrich with live prices from retailers
-    const enriched = await enrichWithPrices(matches);
+    const matches = await searchSimilarProducts(embedding, analysis || {}, {
+      country: marketCountry,
+    });
+
+    const enriched = await enrichWithPrices(matches, marketCountry);
 
     return NextResponse.json({
       success: true,

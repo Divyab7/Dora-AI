@@ -4,14 +4,17 @@ import { useState } from "react";
 import { useUI } from "@/contexts/UIContext";
 import { useWallet } from "@/contexts/WalletContext";
 import { useSpendingLimit } from "@/contexts/SpendingLimitContext";
+import { useMarket } from "@/contexts/MarketContext";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Switch } from "@/components/ui/Switch";
 import { Slider } from "@/components/ui/Slider";
+import type { CountryCode } from "@/lib/commerce/market";
 
 export default function SettingsPage() {
   const { theme, setTheme } = useUI();
   const { isConnected, accountId, disconnect } = useWallet();
+  const { country, setCountry, countryOptions, market } = useMarket();
   const {
     dailyLimit,
     perTransactionLimit,
@@ -52,6 +55,30 @@ export default function SettingsPage() {
             }
           />
         </div>
+      </Card>
+
+      {/* Region */}
+      <Card variant="glass" className="p-4 space-y-3">
+        <h3 className="text-sm font-medium text-[var(--text-primary)]">
+          Shopping Region
+        </h3>
+        <p className="text-xs text-[var(--text-muted)]">
+          Prices, retailers, and availability are shown for your selected country.
+        </p>
+        <select
+          value={country}
+          onChange={(e) => setCountry(e.target.value as CountryCode)}
+          className="w-full rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)] px-3 py-2 text-sm text-[var(--text-primary)]"
+        >
+          {countryOptions.map((opt) => (
+            <option key={opt.code} value={opt.code}>
+              {opt.label} ({opt.currency})
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-[var(--text-secondary)]">
+          Current: {market.label} · {market.currency}
+        </p>
       </Card>
 
       {/* Wallet */}

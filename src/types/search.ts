@@ -2,7 +2,7 @@
 // Search Types
 // ============================================
 
-import type { Product, ProductCategory, ProductAttributes, RetailerOffer } from "./product";
+import type { Product, ProductCategory, ProductAttributes, RetailerListing } from "./product";
 
 export interface VisionLabel {
   description: string;
@@ -39,6 +39,8 @@ export interface VisionAnalysisResult {
   analysisStatus?: AnalysisStatus;
   retrySuggestions?: string[];
   pipelineAttempts?: string[];
+  /** User-facing warning when fallback model or quota issues */
+  pipelineWarning?: string;
   sourceUrl?: string;
   sourceType?: UrlSourceType | "upload";
   /** Server-returned preview for URL extractions */
@@ -51,7 +53,11 @@ export interface ProductMatch {
   lowestPrice: number;
   lowestPriceHbar: string;
   retailerCount: number;
-  allRetailers: RetailerOffer[];
+  allRetailers: RetailerListing[];
+  /** Whether any retailer has an exact title match */
+  exactMatchFound?: boolean;
+  /** User-facing summary of match quality across retailers */
+  matchSummary?: string;
 }
 
 export interface SearchHistoryEntry {

@@ -1,101 +1,103 @@
 /**
- * Hedera Wallet Integration — HashPack & Blade Wallet
- *
- * Both wallets are browser extensions that inject a provider
- * into the window object. This module abstracts the connection
- * and signing flows for both providers.
+ * Hedera Wallet Integration — HashPack (HashConnect) & Blade Wallet
  */
 
 import type { WalletProvider } from "@/types/wallet";
 
-// ============================================
-// Provider Detection
-// ============================================
-
-export interface HashPackProvider {
-  request(args: { method: string; params: unknown }): Promise<unknown>;
-}
-
-export interface BladeProvider {
-  connect(): Promise<{ accountId: string }>;
-  signAndExecuteTransaction(
-    transaction: Uint8Array
-  ): Promise<{ transactionId: string }>;
-}
-
 declare global {
   interface Window {
-    hashpack?: HashPackProvider;
-    bladeWallet?: BladeProvider;
+    hashpack?: {
+      request?: (args: { method: string; params?: unknown }) => Promise<unknown>;
+      connect?: () => Promise<{ accountIds?: string[]; accountId?: string }>;
+    };
+    bladeWallet?: {
+      connect: () => Promise<{ accountId: string }>;
+    };
   }
 }
 
-export function detectWallets(): {
-  hashpack: boolean;
-  blade: boolean;
-} {
+export function detectWallets(): { hashpack: boolean; blade: boolean } {
   if (typeof window === "undefined") {
     return { hashpack: false, blade: false };
   }
-
   return {
-    hashpack: typeof window.hashpack !== "undefined",
-    blade: typeof window.bladeWallet !== "undefined",
+    hashpack: Boolean(window.hashpack?.request || window.hashpack?.connect),
+    blade: typeof window.bladeWallet?.connect === "function",
   };
 }
 
 export function getAvailableWallets(): WalletProvider[] {
+  if (typeof window === "undefined") return [];
+
   const detected = detectWallets();
   const available: WalletProvider[] = [];
-  if (detected.hashpack) available.push("hashpack");
+
+  // Always offer HashPack in the browser (extension or HashConnect modal)
+  available.push("hashpack");
   if (detected.blade) available.push("blade");
+
   return available;
 }
 
-// ============================================
-// HashPack Connection
-// ============================================
+async function connectHashPackLegacy(): Promise<{ accountId: string; network: "testnet" | "mainnet" }> {
+  const provider = window.hashpack;
+  if (!provider) {
+    throw new Error("HashPack extension not detected.");
+  }
+
+  const network =
+    (process.env.NEXT_PUBLIC_HEDERA_NETWORK as "testnet" | "mainnet") || "testnet";
+
+  if (provider.connect) {
+    const result = await provider.connect();
+    const id = result.accountIds?.[0] ?? result.accountId;
+    if (!id) throw new Error("No accounts returned from HashPack");
+    return { accountId: id, network };
+  }
+
+  if (provider.request) {
+    const result = (await provider.request({
+      method: "connect",
+      params: { network },
+    })) as { accountIds?: string[] };
+    if (!result.accountIds?.[0]) throw new Error("No accounts found in HashPack");
+    return { accountId: result.accountIds[0], network };
+  }
+
+  throw new Error("HashPack API not supported. Update the extension or use HashConnect.");
+}
 
 export async function connectHashPack(): Promise<{
   accountId: string;
   network: "testnet" | "mainnet";
 }> {
-  const provider = window.hashpack;
-  if (!provider) {
-    throw new Error(
-      "HashPack wallet not detected. Please install the HashPack browser extension."
-    );
+  if (typeof window === "undefined") {
+    throw new Error("Wallet connection is only available in the browser.");
   }
 
-  try {
-    const network =
-      (process.env.NEXT_PUBLIC_HEDERA_NETWORK as "testnet" | "mainnet") ||
-      "testnet";
+  const detected = detectWallets();
 
-    const result = (await provider.request({
-      method: "connect",
-      params: { network },
-    })) as { accountIds: string[]; network: string };
-
-    if (!result.accountIds || result.accountIds.length === 0) {
-      throw new Error("No accounts found in HashPack wallet");
+  // Try legacy extension API first (works without WalletConnect project ID)
+  if (detected.hashpack) {
+    try {
+      return await connectHashPackLegacy();
+    } catch (legacyError) {
+      if (!process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) {
+        throw legacyError;
+      }
+      // Fall through to HashConnect when legacy fails but WC is configured
     }
-
-    return {
-      accountId: result.accountIds[0],
-      network: result.network as "testnet" | "mainnet",
-    };
-  } catch (error) {
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error("Failed to connect to HashPack wallet");
   }
+
+  if (process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) {
+    const { connectViaHashConnect } = await import("./hashconnect-client");
+    return connectViaHashConnect();
+  }
+
+  throw new Error(
+    "WalletConnect Project ID is not configured. Add NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID to .env.local (free at cloud.walletconnect.com), restart the dev server, and ensure HashPack is installed."
+  );
 }
-
-// ============================================
-// Blade Wallet Connection
-// ============================================
 
 export async function connectBlade(): Promise<{
   accountId: string;
@@ -103,37 +105,17 @@ export async function connectBlade(): Promise<{
 }> {
   const provider = window.bladeWallet;
   if (!provider) {
-    throw new Error(
-      "Blade Wallet not detected. Please install the Blade Wallet browser extension."
-    );
+    throw new Error("Blade Wallet not detected. Install the Blade browser extension.");
   }
 
-  try {
-    const network =
-      (process.env.NEXT_PUBLIC_HEDERA_NETWORK as "testnet" | "mainnet") ||
-      "testnet";
+  const network =
+    (process.env.NEXT_PUBLIC_HEDERA_NETWORK as "testnet" | "mainnet") || "testnet";
 
-    const result = await provider.connect();
-
-    return {
-      accountId: result.accountId,
-      network,
-    };
-  } catch (error) {
-    if (error instanceof Error) {
-      throw error;
-    }
-    throw new Error("Failed to connect to Blade Wallet");
-  }
+  const result = await provider.connect();
+  return { accountId: result.accountId, network };
 }
 
-// ============================================
-// Unified Connection
-// ============================================
-
-export async function connectWallet(
-  provider: WalletProvider
-): Promise<{
+export async function connectWallet(provider: WalletProvider): Promise<{
   accountId: string;
   network: "testnet" | "mainnet";
 }> {
@@ -143,56 +125,40 @@ export async function connectWallet(
     case "blade":
       return connectBlade();
     default:
-      throw new Error(`Unsupported wallet provider: ${provider}`);
+      throw new Error(`Unsupported wallet: ${provider}`);
   }
 }
 
-// ============================================
-// Transaction Signing
-// ============================================
-
-export async function signTransaction(
-  provider: WalletProvider,
-  transactionBytes: Uint8Array
-): Promise<Uint8Array> {
-  switch (provider) {
-    case "hashpack": {
-      const hp = window.hashpack;
-      if (!hp) throw new Error("HashPack not connected");
-
-      const result = (await hp.request({
-        method: "signTransaction",
-        params: { transaction: transactionBytes },
-      })) as { signedTransaction: Uint8Array };
-
-      return result.signedTransaction;
+export async function disconnectWallet(provider: WalletProvider): Promise<void> {
+  if (provider === "hashpack" && process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) {
+    try {
+      const { disconnectHashConnect } = await import("./hashconnect-client");
+      await disconnectHashConnect();
+    } catch {
+      // ignore
     }
+  }
 
-    case "blade": {
-      const blade = window.bladeWallet;
-      if (!blade) throw new Error("Blade Wallet not connected");
-
-      // Blade signs AND executes in one call
-      await blade.signAndExecuteTransaction(transactionBytes);
-      // Return empty — Blade already submitted
-      return new Uint8Array();
-    }
-
-    default:
-      throw new Error(`Unsupported wallet provider: ${provider}`);
+  if (provider === "hashpack" && window.hashpack?.request) {
+    await window.hashpack.request({ method: "disconnect", params: {} }).catch(() => {});
   }
 }
 
-// ============================================
-// Disconnect
-// ============================================
+export async function restoreWalletSession(): Promise<{
+  accountId: string;
+  provider: WalletProvider;
+} | null> {
+  if (typeof window === "undefined") return null;
 
-export function disconnectWallet(provider: WalletProvider): void {
-  // HashPack: disconnect via request
-  if (provider === "hashpack" && window.hashpack) {
-    window.hashpack
-      .request({ method: "disconnect", params: {} })
-      .catch(console.error);
+  if (process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) {
+    try {
+      const { restoreHashConnectSession } = await import("./hashconnect-client");
+      const accountId = await restoreHashConnectSession();
+      if (accountId) return { accountId, provider: "hashpack" };
+    } catch {
+      // not configured
+    }
   }
-  // Blade: no explicit disconnect — clear local state
+
+  return null;
 }

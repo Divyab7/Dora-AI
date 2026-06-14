@@ -30,14 +30,33 @@ export function formatUsd(cents: number): string {
   }).format(dollars);
 }
 
+export function formatMoney(amountMinor: number, currency = "USD", locale?: string): string {
+  const resolvedLocale =
+    locale ??
+    ({ INR: "en-IN", USD: "en-US", GBP: "en-GB", AED: "en-AE", CAD: "en-CA", AUD: "en-AU", EUR: "de-DE", JPY: "ja-JP", SGD: "en-SG", BRL: "pt-BR", MXN: "es-MX", KRW: "ko-KR", SAR: "ar-SA" } as Record<string, string>)[
+      currency
+    ] ??
+    "en-US";
+
+  const fractionDigits = currency === "JPY" || currency === "KRW" ? 0 : 2;
+  const divisor = currency === "JPY" || currency === "KRW" ? 1 : 100;
+
+  return new Intl.NumberFormat(resolvedLocale, {
+    style: "currency",
+    currency,
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(amountMinor / divisor);
+}
+
 export function formatPrice(
   amount: number,
-  currency: "usd" | "hbar" = "usd"
+  currencyOrLegacy: string = "USD"
 ): string {
-  if (currency === "hbar") {
+  if (currencyOrLegacy === "hbar") {
     return formatHbar(amount.toString());
   }
-  return formatUsd(amount);
+  return formatMoney(amount, currencyOrLegacy);
 }
 
 export function formatCompactNumber(n: number): string {

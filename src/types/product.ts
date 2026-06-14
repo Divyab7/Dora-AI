@@ -19,16 +19,26 @@ export interface ProductAttributes {
   gender?: "men" | "women" | "unisex" | "kids";
 }
 
+export type MatchQuality = "exact" | "close" | "alternative";
+
 export interface RetailerOffer {
   retailerId: string;
-  retailerName: "Amazon" | "Nike" | "StockX";
-  price: number; // USD cents
+  retailerName: string;
+  price: number; // smallest currency unit (paise, cents, etc.)
   priceHbar: string; // tinybar as string (BigInt safe)
   currency: string;
   inStock: boolean;
   url: string;
   affiliateUrl: string;
   lastUpdated: string; // ISO 8601
+}
+
+/** A specific product listing found on a retailer */
+export interface RetailerListing extends RetailerOffer {
+  listingTitle: string;
+  productImageUrl?: string;
+  matchQuality: MatchQuality;
+  matchScore: number; // 0–1
 }
 
 export interface Product {

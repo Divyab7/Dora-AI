@@ -140,7 +140,8 @@ export interface AnalyzeImageOptions {
 // Gemini API
 // ============================================
 
-async function callGeminiAPI(
+async function callGeminiModel(
+  model: string,
   prompt: string,
   imageBase64: string,
   mimeType = "image/jpeg",
@@ -150,7 +151,7 @@ async function callGeminiAPI(
   if (!apiKey) throw new Error("GEMINI_API_KEY not set");
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -170,12 +171,22 @@ async function callGeminiAPI(
         ],
         generationConfig: {
           temperature,
-          maxOutputTokens: 700,
+          maxOutputTokens: 1024,
           topP: 0.9,
+          responseMimeType: "application/json",
         },
       }),
     }
   );
+
+  if (response.status === 404) {
+    throw new Error(`Gemini model ${model} not found`);
+  }
+
+  if (response.status === 429 || response.status === 503) {
+    const errText = await response.text();
+    throw new Error(`Gemini ${response.status} on ${model}: ${errText.slice(0, 120)}`);
+  }
 
   if (!response.ok) {
     const errText = await response.text();
@@ -190,6 +201,28 @@ async function callGeminiAPI(
   }
 
   return text;
+}
+
+async function callGeminiAPI(
+  prompt: string,
+  imageBase64: string,
+  mimeType = "image/jpeg",
+  temperature = 0.3
+): Promise<{ text: string; modelUsed: string }> {
+  let lastError: Error | null = null;
+
+  for (const model of AI.GEMINI_VISION_MODELS) {
+    try {
+      const text = await callGeminiModel(model, prompt, imageBase64, mimeType, temperature);
+      return { text, modelUsed: model };
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      console.warn(`[Gemini] ${model} error: ${lastError.message.slice(0, 120)}, trying next...`);
+      continue;
+    }
+  }
+
+  throw lastError ?? new Error("No Gemini vision models available");
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -209,6 +242,27 @@ function extractJSON(text: string): Record<string, any> {
 
 function clampConfidence(value: number | undefined, fallback: number): number {
   return Math.min(100, Math.max(0, value ?? fallback));
+}
+
+function isValidIdentification(id: ProductIdentification): boolean {
+  const name = String(id.productName ?? "").trim().toLowerCase();
+  const desc = String(id.description ?? "").trim();
+  const invalidNames = new Set(["", "null", "unknown", "n/a", "none", "unidentified", "not visible"]);
+  if (invalidNames.has(name) || name.length < 3) return false;
+  if (desc.length < 20) return false;
+  if ((id.confidence ?? 0) < 25) return false;
+  return true;
+}
+
+function parseIdentification(text: string): ProductIdentification {
+  const identification = extractJSON(text) as ProductIdentification;
+  if (!isValidIdentification(identification)) {
+    throw new Error(
+      `Weak identification: ${JSON.stringify(identification).slice(0, 200)}`
+    );
+  }
+  identification.confidence = clampConfidence(identification.confidence, 70);
+  return identification;
 }
 
 function identificationToPipeline(
@@ -293,8 +347,14 @@ async function classifyImage(
   };
 
   try {
-    const classifyText = await callGeminiAPI(IMAGE_CLASSIFIER_PROMPT, imageBase64, mimeType, 0.1);
+    const { text: classifyText, modelUsed } = await callGeminiAPI(
+      IMAGE_CLASSIFIER_PROMPT,
+      imageBase64,
+      mimeType,
+      0.1
+    );
     const r = extractJSON(classifyText);
+    console.log(`[Gemini] Classified via ${modelUsed}`);
     return {
       imageType: r.imageType ?? defaults.imageType,
       itemCount: r.itemCount ?? 1,
@@ -323,35 +383,50 @@ export async function analyzeWithGemini(
 }> {
   console.log("[Gemini] Starting analysis...");
 
-  const classifier = await classifyImage(imageBase64, mimeType);
+  let lastError: Error | null = null;
 
-  const identifyText = await callGeminiAPI(
-    customPrompt ?? PRODUCT_IDENTIFIER_PROMPT,
-    imageBase64,
-    mimeType,
-    0.3
-  );
-  const identification = extractJSON(identifyText) as ProductIdentification;
+  for (const model of AI.GEMINI_VISION_MODELS) {
+    try {
+      const identifyText = await callGeminiModel(
+        model,
+        customPrompt ?? PRODUCT_IDENTIFIER_PROMPT,
+        imageBase64,
+        mimeType,
+        0.2
+      );
+      const identification = parseIdentification(identifyText);
 
-  if (!identification.productName || !identification.description) {
-    throw new Error(
-      `Gemini response missing fields. Got: ${JSON.stringify(identification).slice(0, 200)}`
-    );
+      const classifier =
+        identification.confidence < 75
+          ? await classifyImage(imageBase64, mimeType)
+          : {
+              imageType: "product_photo" as const,
+              itemCount: 1,
+              mainFocus: identification.productName,
+              hasBrandLogo: Boolean(identification.brand),
+              hasText: false,
+              hasMultipleItems: false,
+              imageQuality: "medium" as const,
+            };
+
+      console.log(
+        `[Gemini] ✓ "${identification.productName}" (${identification.brand || "no brand"}) — ${identification.confidence}% via ${model}`
+      );
+
+      return {
+        identification,
+        imageType: classifier.imageType,
+        imageQuality: classifier.imageQuality,
+        modelUsed: model,
+        classifier,
+      };
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      console.warn(`[Gemini] ${model} identification failed: ${lastError.message.slice(0, 120)}`);
+    }
   }
 
-  identification.confidence = clampConfidence(identification.confidence, 70);
-
-  console.log(
-    `[Gemini] ✓ "${identification.productName}" (${identification.brand || "no brand"}) — ${identification.confidence}%`
-  );
-
-  return {
-    identification,
-    imageType: classifier.imageType,
-    imageQuality: classifier.imageQuality,
-    modelUsed: "gemini-1.5-flash",
-    classifier,
-  };
+  throw lastError ?? new Error("No Gemini model produced valid identification");
 }
 
 // ============================================
@@ -422,7 +497,7 @@ async function extractOcrFromImage(
   mimeType: string
 ): Promise<{ extractedText: string; brands: string[]; productHints: string[] } | null> {
   try {
-    const text = await callGeminiAPI(OCR_PROMPT, imageBase64, mimeType, 0.1);
+    const { text } = await callGeminiAPI(OCR_PROMPT, imageBase64, mimeType, 0.1);
     const r = extractJSON(text);
     if (!r.extractedText && (!r.brands || r.brands.length === 0)) return null;
     return {
@@ -443,7 +518,7 @@ async function verifyIdentification(
   brand: string | null
 ): Promise<{ confidence: number; correction: string | null } | null> {
   try {
-    const text = await callGeminiAPI(
+    const { text } = await callGeminiAPI(
       verifyPrompt(productName, brand),
       imageBase64,
       mimeType,
@@ -530,7 +605,7 @@ async function runPipeline(
   // ── Tier 1: Gemini ──
   if (process.env.GEMINI_API_KEY) {
     try {
-      attempts.push("gemini-1.5-flash");
+      attempts.push("gemini");
       const gemini = await withTimeout(
         analyzeWithGemini(imageBase64, mimeType),
         20000,
@@ -591,7 +666,7 @@ async function runPipeline(
         );
         const ocrResult = identificationToPipeline(
           enriched.identification,
-          "gemini-1.5-flash+ocr",
+          `${enriched.modelUsed}+ocr`,
           enriched.imageType,
           enriched.imageQuality,
           [...attempts]
@@ -670,6 +745,16 @@ async function runPipeline(
   return finalizeStatus(best, classifier);
 }
 
+function buildPipelineWarning(result: PipelineResult): string | undefined {
+  if (result.modelUsed.includes("blip")) {
+    return "Using basic AI fallback — Gemini/OpenAI quota may be exceeded. Results will be less accurate.";
+  }
+  if (result.confidence < 50) {
+    return "Low identification confidence — try a clearer photo for better results.";
+  }
+  return undefined;
+}
+
 // ============================================
 // Main Export
 // ============================================
@@ -724,6 +809,7 @@ export async function analyzeProductImage(
     analysisStatus: result.analysisStatus,
     retrySuggestions: result.retrySuggestions,
     pipelineAttempts: result.attempts,
+    pipelineWarning: buildPipelineWarning(result),
     sourceUrl: options.sourceUrl,
     sourceType: options.sourceType,
     imageDataUrl: options.skipPreprocess

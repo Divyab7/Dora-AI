@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/Input";
 import { ScanRing } from "@/components/animations/ScanRing";
 import { cn } from "@/lib/utils/cn";
 import { ROUTES } from "@/lib/utils/constants";
+import { parseApiResponse } from "@/lib/utils/api";
 import type { VisionAnalysisResult } from "@/types/search";
 
 type UploadState = "idle" | "uploading" | "analyzing";
@@ -82,18 +83,19 @@ export default function ScanPage() {
         });
         clearTimeout(timeoutId);
 
-        const analyzeData = await analyzeRes.json();
+        const analyzeData = await parseApiResponse<VisionAnalysisResult>(analyzeRes);
 
-        if (!analyzeData.success) {
+        if (!analyzeData.success || !analyzeData.data) {
           throw new Error(analyzeData.error?.message || "AI analysis failed. Please try again.");
         }
 
-        const displayPreview = analyzeData.data.imageDataUrl ?? previewUrl;
-        if (analyzeData.data.sourceType && analyzeData.data.sourceType !== "upload") {
-          setSourceLabel(SOURCE_LABELS[analyzeData.data.sourceType] ?? "Link");
+        const result = analyzeData.data;
+        const displayPreview = result.imageDataUrl ?? previewUrl;
+        if (result.sourceType && result.sourceType !== "upload") {
+          setSourceLabel(SOURCE_LABELS[result.sourceType] ?? "Link");
         }
 
-        finishAnalysis(analyzeData.data, displayPreview);
+        finishAnalysis(result, displayPreview);
       } catch (error) {
         const msg =
           error instanceof Error
@@ -237,6 +239,9 @@ export default function ScanPage() {
               accept="image/jpeg,image/png,image/webp,image/heic"
               capture="environment"
               className="hidden"
+              style={{ display: "none" }}
+              aria-hidden="true"
+              tabIndex={-1}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) handleFile(file);

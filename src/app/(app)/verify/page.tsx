@@ -4,11 +4,14 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useSearch } from "@/contexts/SearchContext";
+import { useMarket } from "@/contexts/MarketContext";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { ScanRing } from "@/components/animations/ScanRing";
 import { AI, ROUTES } from "@/lib/utils/constants";
+import { parseApiResponse } from "@/lib/utils/api";
+import type { ProductMatch } from "@/types/search";
 
 export default function VerifyPage() {
   const router = useRouter();
@@ -21,6 +24,7 @@ export default function VerifyPage() {
     searchError,
     resetSearch,
   } = useSearch();
+  const { country } = useMarket();
 
   const [isSearching, setIsSearching] = useState(false);
 
@@ -79,10 +83,11 @@ export default function VerifyPage() {
         body: JSON.stringify({
           embedding: analysisResult!.embedding,
           analysis: analysisResult,
+          country,
         }),
       });
 
-      const searchData = await searchRes.json();
+      const searchData = await parseApiResponse<{ matches: ProductMatch[] }>(searchRes);
 
       if (!searchData.success) {
         throw new Error(searchData.error?.message || "Search failed");
@@ -165,6 +170,12 @@ export default function VerifyPage() {
             <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
               AI identified as
             </p>
+
+            {analysisResult.pipelineWarning && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-sm text-amber-300">
+                {analysisResult.pipelineWarning}
+              </div>
+            )}
 
             {isLowConfidence ? (
               <div className="space-y-3">

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchCrossRetailerPrices } from "@/lib/ai/catalog";
+import { fetchRetailerListings } from "@/lib/commerce/retailer-listings";
+import { resolveCountry } from "@/lib/commerce/market";
 import { priceCompareSchema } from "@/lib/utils/validators";
-import type { ApiResponse, RetailerOffer } from "@/types";
+import type { ApiResponse, RetailerListing } from "@/types";
 
 /**
  * POST /api/prices/compare
@@ -10,7 +11,7 @@ import type { ApiResponse, RetailerOffer } from "@/types";
  */
 export async function POST(
   request: NextRequest
-): Promise<NextResponse<ApiResponse<{ offers: RetailerOffer[] }>>> {
+): Promise<NextResponse<ApiResponse<{ offers: RetailerListing[] }>>> {
   const requestId = `req-${Date.now()}`;
 
   try {
@@ -28,10 +29,11 @@ export async function POST(
       }, { status: 400 });
     }
 
-    // Fetch prices from all retailers
-    const offers = await fetchCrossRetailerPrices(
+    const offers = await fetchRetailerListings(
       parsed.data.productId,
-      "" // brand would come from product lookup
+      "",
+      "accessories",
+      resolveCountry((body as { country?: string }).country)
     );
 
     return NextResponse.json({

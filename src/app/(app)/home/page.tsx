@@ -35,6 +35,11 @@ export default function HomePage() {
 
       {/* Quick actions */}
       <div className="grid grid-cols-2 gap-3">
+        <Card hover className="p-4 text-center space-y-2" onClick={() => router.push("/agent")}>
+          <span className="text-3xl">💬</span>
+          <p className="text-sm font-medium text-[var(--text-primary)]">Dora Agent</p>
+          <p className="text-xs text-[var(--text-muted)]">Chat & pay in HBAR</p>
+        </Card>
         <Card hover className="p-4 text-center space-y-2" onClick={() => router.push("/scan")}>
           <span className="text-3xl">📸</span>
           <p className="text-sm font-medium text-[var(--text-primary)]">Visual Search</p>
