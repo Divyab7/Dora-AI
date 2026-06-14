@@ -1,12 +1,13 @@
 import { Client } from "@hiero-ledger/sdk";
 import { AgentMode } from "@hashgraph/hedera-agent-kit";
+import { getServerClient } from "@/lib/hedera/client";
 
 export const SEARCH_UNLOCK_HBAR = 0.1;
 export const SEARCH_UNLOCK_TINYBAR = "10000000"; // 0.1 HBAR
 
+/** Hedera client for Agent Kit — uses operator so transactions can be frozen for signing. */
 export function createAgentClient(): Client {
-  const network = process.env.HEDERA_NETWORK || process.env.NEXT_PUBLIC_HEDERA_NETWORK || "testnet";
-  return network === "mainnet" ? Client.forMainnet() : Client.forTestnet();
+  return getServerClient() as unknown as Client;
 }
 
 export function getAgentMode(): AgentMode {
