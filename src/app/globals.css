@@ -1,0 +1,243 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   Dora-AI Design System — Dark mode by default
+   Hedera Green (#00FF9D) accent
+   Glassmorphism UI
+   ============================================ */
+
+:root {
+  /* Backgrounds */
+  --background: #0a0a0f;
+  --foreground: #e4e4e7;
+
+  /* Surface layers */
+  --surface: #12121a;
+  --surface-elevated: #1a1a25;
+  --surface-overlay: #22222f;
+
+  /* Glassmorphism */
+  --glass-bg: rgba(18, 18, 26, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-highlight: rgba(255, 255, 255, 0.04);
+
+  /* Accent */
+  --accent: #00FF9D;
+  --accent-dim: rgba(0, 255, 157, 0.15);
+
+  /* Status */
+  --success: #00FF9D;
+  --error: #ff4d6a;
+  --warning: #ffb347;
+  --info: #4da6ff;
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.06);
+  --border-hover: rgba(255, 255, 255, 0.12);
+
+  /* Text */
+  --text-primary: #f0f0f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+}
+
+/* Light mode override (toggleable) */
+[data-theme="light"] {
+  --background: #f8f8fc;
+  --foreground: #18181b;
+  --surface: #ffffff;
+  --surface-elevated: #f4f4f8;
+  --surface-overlay: #eeeef4;
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  --glass-highlight: rgba(0, 0, 0, 0.02);
+  --accent-dim: rgba(0, 255, 157, 0.12);
+  --border: rgba(0, 0, 0, 0.06);
+  --border-hover: rgba(0, 0, 0, 0.12);
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-muted: #a1a1aa;
+}
+
+/* ============================================
+   Base styles
+   ============================================ */
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================
+   Glassmorphism utilities
+   ============================================ */
+
+@layer components {
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+  }
+
+  .glass-card {
+    @apply glass;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2),
+                inset 0 1px 0 var(--glass-highlight);
+  }
+
+  .glass-elevated {
+    @apply glass;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 var(--glass-highlight);
+  }
+
+  .glass-input {
+    @apply glass;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    transition: border-color 0.2s ease;
+  }
+
+  .glass-input:focus {
+    border-color: var(--accent);
+    outline: none;
+    box-shadow: 0 0 0 3px var(--accent-dim);
+  }
+
+  /* Hedera Green accent button */
+  .btn-accent {
+    background: var(--accent);
+    color: #0a0a0f;
+    font-weight: 600;
+    border-radius: 12px;
+    padding: 12px 24px;
+    transition: all 0.2s ease;
+    box-shadow: 0 0 20px rgba(0, 255, 157, 0.2);
+  }
+
+  .btn-accent:hover {
+    box-shadow: 0 0 30px rgba(0, 255, 157, 0.4);
+    transform: translateY(-1px);
+  }
+
+  .btn-accent:active {
+    transform: translateY(0);
+  }
+
+  .btn-accent:disabled {
+    background: var(--surface-overlay);
+    color: var(--text-muted);
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Glass button */
+  .btn-glass {
+    @apply glass;
+    color: var(--text-primary);
+    font-weight: 500;
+    border-radius: 12px;
+    padding: 10px 20px;
+    transition: all 0.2s ease;
+  }
+
+  .btn-glass:hover {
+    border-color: var(--border-hover);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  /* Skeleton loading */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--surface) 25%,
+      var(--surface-elevated) 50%,
+      var(--surface) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+    border-radius: 8px;
+  }
+
+  /* Hedera green glow */
+  .glow-green {
+    box-shadow: 0 0 20px rgba(0, 255, 157, 0.15),
+                0 0 40px rgba(0, 255, 157, 0.05);
+  }
+
+  /* Confidence score bar */
+  .confidence-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface-overlay);
+    overflow: hidden;
+  }
+
+  .confidence-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease-out;
+  }
+
+  /* Mobile bottom nav safe area */
+  .bottom-nav-safe {
+    padding-bottom: env(safe-area-inset-bottom, 16px);
+  }
+}
+
+/* ============================================
+   Utility classes
+   ============================================ */
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ============================================
+   Scrollbar styling
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-hover);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* ============================================
+   Selection styling
+   ============================================ */
+
+::selection {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
