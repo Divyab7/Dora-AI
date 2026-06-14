@@ -12,6 +12,16 @@ export function isChunkLoadError(error: unknown): boolean {
 
 const RELOAD_KEY = "dora_chunk_reload";
 
+export function clearChunkReloadFlag(): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(RELOAD_KEY);
+}
+
+export function hasAlreadyReloadedForChunk(): boolean {
+  if (typeof window === "undefined") return false;
+  return sessionStorage.getItem(RELOAD_KEY) === "1";
+}
+
 /** Reload once per session when a stale chunk is detected. */
 export function reloadOnceForStaleChunk(): boolean {
   if (typeof window === "undefined") return false;

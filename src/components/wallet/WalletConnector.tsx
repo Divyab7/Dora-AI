@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useWallet } from "@/contexts/WalletContext";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { WalletBrandIcon } from "@/components/wallet/WalletBrandIcon";
 import type { WalletProvider } from "@/types/wallet";
 import { getAvailableWallets } from "@/lib/hedera/wallet";
 
@@ -146,12 +147,10 @@ export function WalletConnector() {
           disabled={isConnecting}
           className="w-full glass-card p-4 flex items-center gap-4 hover:border-[var(--border-hover)] transition-all duration-200 disabled:opacity-50"
         >
-          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 text-lg">
-            🦊
-          </div>
+          <WalletBrandIcon provider="hashpack" size={40} />
           <div className="text-left flex-1">
             <p className="text-sm font-medium text-[var(--text-primary)]">HashPack</p>
-            <p className="text-xs text-[var(--text-muted)]">Popular Hedera wallet</p>
+            <p className="text-xs text-[var(--text-muted)]">Hedera wallet — extension or mobile</p>
           </div>
           {isConnecting && selectedProvider === "hashpack" ? (
             <div className="w-5 h-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
@@ -168,9 +167,7 @@ export function WalletConnector() {
           disabled={isConnecting}
           className="w-full glass-card p-4 flex items-center gap-4 hover:border-[var(--border-hover)] transition-all duration-200 disabled:opacity-50"
         >
-          <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0 text-lg">
-            ⚔️
-          </div>
+          <WalletBrandIcon provider="blade" size={40} />
           <div className="text-left flex-1">
             <p className="text-sm font-medium text-[var(--text-primary)]">Blade Wallet</p>
             <p className="text-xs text-[var(--text-muted)]">Web3 Hedera wallet</p>
@@ -181,6 +178,12 @@ export function WalletConnector() {
             <span className="text-[var(--accent)] text-sm font-medium">Connect →</span>
           )}
         </button>
+      )}
+
+      {available.includes("hashpack") && process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID && (
+        <p className="text-[11px] text-center text-[var(--text-muted)] px-2">
+          If a wallet picker opens, choose <strong className="text-[var(--accent)]">HashPack</strong> — not MetaMask.
+        </p>
       )}
     </div>
   );

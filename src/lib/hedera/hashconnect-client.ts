@@ -37,7 +37,7 @@ export async function getHashConnect(): Promise<HashConnect> {
       {
         name: "Dora AI",
         description: "Visual shopping with HBAR",
-        icons: [`${getAppOrigin()}/favicon.ico`],
+        icons: [`${getAppOrigin()}/wallets/hashpack.svg`],
         url: getAppOrigin(),
       },
       false

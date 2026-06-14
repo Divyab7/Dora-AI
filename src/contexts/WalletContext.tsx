@@ -8,9 +8,15 @@ import React, {
   useEffect,
 } from "react";
 import type { WalletProvider, HbarBalance, MandateRecord } from "@/types/wallet";
-import { connectWallet, disconnectWallet, getAvailableWallets, restoreWalletSession, preloadHashConnect } from "@/lib/hedera/wallet";
+import {
+  connectWallet,
+  disconnectWallet,
+  getAvailableWallets,
+  preloadHashConnect,
+  restoreWalletSession,
+} from "@/lib/hedera/wallet";
 import { loadMandates, addMandate as saveMandate, revokeMandate as removeMandate } from "@/lib/storage/mandates";
-import { isChunkLoadError, reloadOnceForStaleChunk } from "@/lib/utils/chunk-reload";
+import { isChunkLoadError, reloadOnceForStaleChunk, hasAlreadyReloadedForChunk, clearChunkReloadFlag } from "@/lib/utils/chunk-reload";
 
 // ============================================
 // Types
@@ -141,9 +147,10 @@ export function WalletContextProvider({
 }) {
   const [state, dispatch] = useReducer(walletReducer, initialState);
 
-  // Detect available wallets + restore HashConnect session
+  // Detect available wallets, preload HashConnect chunk, restore session
   useEffect(() => {
     getAvailableWallets();
+    preloadHashConnect();
 
     restoreWalletSession().then((session) => {
       if (session) {
@@ -167,11 +174,6 @@ export function WalletContextProvider({
     dispatch({ type: "LOAD_MANDATES", payload: mandates });
   }, []);
 
-  // Preload HashConnect chunk so connect doesn't fail on stale/missing lazy chunks
-  useEffect(() => {
-    preloadHashConnect();
-  }, []);
-
   const connect = useCallback(async (provider: WalletProvider) => {
     dispatch({ type: "CONNECT_START", payload: provider });
 
@@ -181,16 +183,19 @@ export function WalletContextProvider({
         type: "CONNECT_SUCCESS",
         payload: { accountId, network, provider },
       });
+      clearChunkReloadFlag();
     } catch (error) {
-      if (isChunkLoadError(error)) {
-        reloadOnceForStaleChunk();
+      if (isChunkLoadError(error) && reloadOnceForStaleChunk()) {
+        return;
       }
       const message =
         error instanceof Error ? error.message : "Failed to connect wallet";
       dispatch({
         type: "CONNECT_ERROR",
         payload: isChunkLoadError(error)
-          ? "App updated — refreshing page. Try connecting again."
+          ? hasAlreadyReloadedForChunk()
+            ? "Wallet failed to load. Hard-refresh (Cmd+Shift+R), or install the HashPack extension and try again."
+            : "Loading wallet… page will refresh once."
           : message,
       });
       throw error instanceof Error ? error : new Error(message);

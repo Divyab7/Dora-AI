@@ -23,6 +23,13 @@ async function loadHashConnect() {
   return importWithChunkRetry(() => import("./hashconnect-client"));
 }
 
+/** Warm the HashConnect lazy chunk after mount (client-only). */
+export function preloadHashConnect(): void {
+  if (typeof window === "undefined") return;
+  if (!process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) return;
+  void importWithChunkRetry(() => import("./hashconnect-client")).catch(() => {});
+}
+
 export function detectWallets(): { hashpack: boolean; blade: boolean } {
   if (typeof window === "undefined") {
     return { hashpack: false, blade: false };
@@ -165,12 +172,4 @@ export async function restoreWalletSession(): Promise<{
   }
 
   return null;
-}
-
-/** Warm up the HashConnect bundle after page load to avoid chunk errors on first connect. */
-export function preloadHashConnect(): void {
-  if (typeof window === "undefined" || !process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) {
-    return;
-  }
-  loadHashConnect().catch(() => {});
 }

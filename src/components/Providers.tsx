@@ -9,7 +9,6 @@ import { CheckoutContextProvider } from "@/contexts/CheckoutContext";
 import { GroupBuyContextProvider } from "@/contexts/GroupBuyContext";
 import { MarketContextProvider } from "@/contexts/MarketContext";
 import { ToastContainer } from "@/components/ui/Toast";
-import { ChunkErrorHandler } from "@/components/ChunkErrorHandler";
 
 /**
  * Renders the toast notification overlay.
@@ -35,7 +34,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <SearchContextProvider>
                 <CheckoutContextProvider>
                   <GroupBuyContextProvider>
-                    <ChunkErrorHandler />
                     {children}
                     <ToastOverlay />
                   </GroupBuyContextProvider>
