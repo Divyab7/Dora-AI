@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/contexts/CartContext";
 import { useWallet } from "@/contexts/WalletContext";
@@ -27,6 +27,12 @@ export default function CheckoutPage() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const currency = summary.currency || market.currency;
+
+  useEffect(() => {
+    if (items.length === 0 && stage !== "complete") {
+      router.replace("/cart");
+    }
+  }, [items.length, stage, router]);
 
   async function handleStartCheckout() {
     if (!isConnected) {
@@ -85,7 +91,6 @@ export default function CheckoutPage() {
   }
 
   if (items.length === 0 && stage !== "complete") {
-    router.push("/cart");
     return null;
   }
 

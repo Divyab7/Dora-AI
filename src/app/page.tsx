@@ -51,8 +51,8 @@ export default function LandingPage() {
 
         {/* CTAs */}
         <div className="flex flex-col gap-3">
-          <a href="/scan" className="btn-accent text-center text-base">
-            Start Scanning Now
+          <a href="/agent" className="btn-accent text-center text-base">
+            Chat with Dora
           </a>
           <a
             href="/onboarding"
