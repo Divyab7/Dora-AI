@@ -1,3 +1,10 @@
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const hederaWalletConnectBrowser = require.resolve(
+  "@hashgraph/hedera-wallet-connect/dist/browser-esm.js"
+);
+
 const WC_CONNECT =
   "https://*.walletconnect.com https://*.walletconnect.org " +
   "https://relay.walletconnect.com https://rpc.walletconnect.com " +
@@ -7,9 +14,41 @@ const WC_WS = "wss://*.walletconnect.com wss://*.walletconnect.org wss://relay.w
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Prevent webpack from bundling native sharp binary incorrectly
+  swcMinify: false,
+  transpilePackages: ["hashconnect", "@hashgraph/hedera-wallet-connect"],
   experimental: {
     serverComponentsExternalPackages: ["sharp"],
+  },
+  webpack: (config, { isServer, webpack, dev }) => {
+    if (!isServer) {
+      // hashconnect is obfuscated; scope hoisting in prod breaks with "Identifier 'n' has already been declared"
+      if (!dev) {
+        config.optimization.concatenateModules = false;
+      }
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        "@hashgraph/hedera-wallet-connect":
+          "@hashgraph/hedera-wallet-connect/dist/browser-esm.js",
+        "@hashgraph/hedera-wallet-connect/dist/node-esm.js":
+          "@hashgraph/hedera-wallet-connect/dist/browser-esm.js",
+        "@hashgraph/hedera-wallet-connect/dist/node-cjs.js":
+          "@hashgraph/hedera-wallet-connect/dist/browser-cjs.js",
+      };
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
+      };
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(
+          /@hashgraph\/hedera-wallet-connect\/dist\/node-esm\.js$/,
+          hederaWalletConnectBrowser
+        )
+      );
+    }
+    return config;
   },
   images: {
     remotePatterns: [

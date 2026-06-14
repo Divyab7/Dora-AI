@@ -90,13 +90,16 @@ export async function connectViaHashConnect(): Promise<{
       }
     });
 
-    hc.openPairingModal("dark").catch((err) => {
-      if (!settled) {
-        settled = true;
-        clearTimeout(timeout);
-        reject(err instanceof Error ? err : new Error(String(err)));
-      }
-    });
+    // HashPack extension needs a moment to inject before the pairing modal opens
+    setTimeout(() => {
+      hc.openPairingModal("dark").catch((err) => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timeout);
+          reject(err instanceof Error ? err : new Error(String(err)));
+        }
+      });
+    }, 300);
   });
 }
 

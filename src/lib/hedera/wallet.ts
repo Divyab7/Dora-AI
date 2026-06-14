@@ -5,7 +5,6 @@
  */
 
 import type { WalletProvider } from "@/types/wallet";
-import { importWithChunkRetry } from "@/lib/utils/chunk-reload";
 
 declare global {
   interface Window {
@@ -19,15 +18,32 @@ declare global {
   }
 }
 
-async function loadHashConnect() {
-  return importWithChunkRetry(() => import("./hashconnect-client"));
+type HashConnectModule = typeof import("./hashconnect-client");
+
+/** One in-flight import — parallel calls were executing the HashConnect chunk twice and crashing. */
+let hashConnectModulePromise: Promise<HashConnectModule> | null = null;
+
+function loadHashConnectModule(): Promise<HashConnectModule> {
+  if (!hashConnectModulePromise) {
+    hashConnectModulePromise = import(
+      /* webpackChunkName: "hashconnect-bundle" */ "./hashconnect-client"
+    ).catch((error) => {
+      hashConnectModulePromise = null;
+      throw error;
+    });
+  }
+  return hashConnectModulePromise;
 }
 
-/** Warm the HashConnect lazy chunk after mount (client-only). */
+async function loadHashConnect() {
+  return loadHashConnectModule();
+}
+
+/** Warm the HashConnect chunk once after mount (client-only). */
 export function preloadHashConnect(): void {
   if (typeof window === "undefined") return;
   if (!process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) return;
-  void importWithChunkRetry(() => import("./hashconnect-client")).catch(() => {});
+  void loadHashConnectModule().catch(() => {});
 }
 
 export function detectWallets(): { hashpack: boolean; blade: boolean } {
@@ -163,7 +179,7 @@ export async function restoreWalletSession(): Promise<{
 
   if (process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID) {
     try {
-      const { restoreHashConnectSession } = await loadHashConnect();
+      const { restoreHashConnectSession } = await loadHashConnectModule();
       const accountId = await restoreHashConnectSession();
       if (accountId) return { accountId, provider: "hashpack" };
     } catch {

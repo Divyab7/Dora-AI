@@ -2,6 +2,13 @@
 export function isChunkLoadError(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const msg = error.message.toLowerCase();
+  if (
+    msg.includes("already been declared") ||
+    msg.includes("syntaxerror") ||
+    msg.includes("unexpected token")
+  ) {
+    return false;
+  }
   return (
     msg.includes("loading chunk") ||
     msg.includes("chunkloaderror") ||

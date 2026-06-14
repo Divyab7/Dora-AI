@@ -12,11 +12,9 @@ import {
   connectWallet,
   disconnectWallet,
   getAvailableWallets,
-  preloadHashConnect,
-  restoreWalletSession,
 } from "@/lib/hedera/wallet";
 import { loadMandates, addMandate as saveMandate, revokeMandate as removeMandate } from "@/lib/storage/mandates";
-import { isChunkLoadError, reloadOnceForStaleChunk, hasAlreadyReloadedForChunk, clearChunkReloadFlag } from "@/lib/utils/chunk-reload";
+import { isChunkLoadError, reloadOnceForStaleChunk, clearChunkReloadFlag } from "@/lib/utils/chunk-reload";
 
 // ============================================
 // Types
@@ -147,25 +145,9 @@ export function WalletContextProvider({
 }) {
   const [state, dispatch] = useReducer(walletReducer, initialState);
 
-  // Detect available wallets, preload HashConnect chunk, restore session
+  // Wallet session is restored when the user connects (avoids loading HashConnect on every page)
   useEffect(() => {
     getAvailableWallets();
-    preloadHashConnect();
-
-    restoreWalletSession().then((session) => {
-      if (session) {
-        dispatch({
-          type: "CONNECT_SUCCESS",
-          payload: {
-            accountId: session.accountId,
-            network:
-              (process.env.NEXT_PUBLIC_HEDERA_NETWORK as "testnet" | "mainnet") ||
-              "testnet",
-            provider: session.provider,
-          },
-        });
-      }
-    });
   }, []);
 
   // Load persisted mandates
@@ -193,9 +175,7 @@ export function WalletContextProvider({
       dispatch({
         type: "CONNECT_ERROR",
         payload: isChunkLoadError(error)
-          ? hasAlreadyReloadedForChunk()
-            ? "Wallet failed to load. Hard-refresh (Cmd+Shift+R), or install the HashPack extension and try again."
-            : "Loading wallet… page will refresh once."
+          ? "Wallet module failed to load after a deploy. Close this tab, reopen the site, and try again."
           : message,
       });
       throw error instanceof Error ? error : new Error(message);
